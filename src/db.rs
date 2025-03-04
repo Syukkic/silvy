@@ -1,3 +1,4 @@
+use crate::config::Config;
 use sqlx::sqlite::{SqlitePool, SqlitePoolOptions};
 use std::{fs, path::Path};
 
@@ -66,5 +67,9 @@ impl Database {
         .await?;
 
         Ok(Self { pool })
+    }
+
+    pub async fn with_config(config: &Config) -> Result<Self, sqlx::Error> {
+        Self::new(config.db_path.to_str().expect("Invalid database path")).await
     }
 }
