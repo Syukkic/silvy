@@ -45,35 +45,37 @@ impl Config {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
+    use tempfile::TempDir;
 
     #[test]
     fn test_default_config_paths() {
-        let config = Config::new().expect("Failed to create config");
-        let config_path = config_dir()
-            .expect("Unable to determine config directory")
-            .join("silvy")
-            .canonicalize()
-            .expect("Failed to canonicalize config directory");
+        let temp_config_dir = TempDir::new().expect("Failed to create temp config dir");
+        let temp_local_dir = TempDir::new().expect("Failed to create temp local dir");
 
-        let local_path = data_local_dir()
-            .expect("Unable to determine local directory")
-            .join("silvy")
-            .canonicalize()
-            .expect("Failed to canonicalize local directory");
+        let mock_config_dir = temp_config_dir.path().to_path_buf();
+        let mock_local_dir = temp_local_dir.path().to_path_buf();
+
+        let silvy_config_path = Config::create_dir_if_not_exists(mock_config_dir.join("silvy"))
+            .expect("Failed to create config directory");
+        let silvy_local_path = Config::create_dir_if_not_exists(mock_local_dir.join("silvy"))
+            .expect("Failed to create local directory");
+
+        let cache_db = Config::create_file_if_not_exists(silvy_local_path.join("cache.db"))
+            .expect("Failed to create cache.db");
+        let urls_file = Config::create_file_if_not_exists(silvy_config_path.join("urls"))
+            .expect("Failed to create urls file");
 
         assert_eq!(
-            config
-                .db_path
-                .canonicalize()
-                .expect("Failed to canonicalize db_path"),
-            local_path.join("cache.db")
+            cache_db.canonicalize().unwrap(),
+            silvy_local_path.join("cache.db").canonicalize().unwrap()
         );
         assert_eq!(
-            config
-                .urls_path
-                .canonicalize()
-                .expect("Failed to canonicalize urls_path"),
-            config_path.join("urls")
+            urls_file.canonicalize().unwrap(),
+            silvy_config_path.join("urls").canonicalize().unwrap()
         );
+
+        assert!(fs::metadata(&cache_db).is_ok());
+        assert!(fs::metadata(&urls_file).is_ok());
     }
 }
