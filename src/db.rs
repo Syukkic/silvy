@@ -1,6 +1,5 @@
 use crate::config::Config;
 use sqlx::sqlite::{SqlitePool, SqlitePoolOptions};
-use std::{fs, path::Path};
 
 pub struct Database {
     pool: SqlitePool,
@@ -8,24 +7,6 @@ pub struct Database {
 
 impl Database {
     pub async fn new(path: &str) -> Result<Self, sqlx::Error> {
-        let db_path = Path::new(path);
-        if !db_path.exists() {
-            if let Some(parent) = db_path.parent() {
-                fs::create_dir_all(parent).map_err(|e| {
-                    sqlx::Error::Io(std::io::Error::new(
-                        std::io::ErrorKind::Other,
-                        format!("Failed to create directory: {}", e),
-                    ))
-                })?
-            }
-            fs::File::create(db_path).map_err(|e| {
-                sqlx::Error::Io(std::io::Error::new(
-                    std::io::ErrorKind::Other,
-                    format!("Failed to create database file: {}", e),
-                ))
-            })?;
-        }
-
         let pool = SqlitePoolOptions::new()
             .max_connections(5)
             .connect(&format!("sqlite:{}", path))
