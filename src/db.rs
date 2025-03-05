@@ -1,12 +1,16 @@
-use crate::config::Config;
+use crate::{
+    config::Config,
+    models::{Feed, Item},
+};
+use anyhow::{Context, Ok, Result};
 use sqlx::sqlite::{SqlitePool, SqlitePoolOptions};
 
 pub struct Database {
-    pool: SqlitePool,
+    pub pool: SqlitePool,
 }
 
 impl Database {
-    pub async fn new(path: &str) -> Result<Self, sqlx::Error> {
+    pub async fn new(path: &str) -> Result<Self> {
         let pool = SqlitePoolOptions::new()
             .max_connections(5)
             .connect(&format!("sqlite:{}", path))
@@ -16,10 +20,8 @@ impl Database {
             r#"
             CREATE TABLE IF NOT EXISTS rss_feeds (
                rssurl       VARCHAR(1024) PRIMARY KEY NOT NULL, 
-               url          VARCHAR(1024) NOT NULL, 
+               url          VARCHAR(1024) UNIQUE NOT NULL, 
                title        VARCHAR(1024) NOT NULL, 
-               is_rtl       INTEGER(1) NOT NULL DEFAULT 0, 
-               etag         VARCHAR(128) NOT NULL DEFAULT ""
         );
             CREATE INDEX IF NOT EXISTS idx_rssurl ON rss_feeds(rssurl);
         "#,
@@ -38,7 +40,8 @@ impl Database {
                 feedurl     VARCHAR(1024) NOT NULL,
                 pub_date    INTEGER NOT NULL,
                 content     TEXT NOT NULL,
-                unread      INTEGER(1) NOT NULL
+                unread      INTEGER(1) NOT NULL,
+                FOREIGN KEY (feedurl) REFERENCES rss_feeds(rssurl)
         );
             CREATE INDEX idx_guid ON rss_items(guid);
             CREATE INDEX idx_feedurl ON rss_items(feedurl);
@@ -50,7 +53,35 @@ impl Database {
         Ok(Self { pool })
     }
 
-    pub async fn with_config(config: &Config) -> Result<Self, sqlx::Error> {
-        Self::new(config.db_path.to_str().expect("Invalid database path")).await
+    pub async fn with_config(config: &Config) -> Result<Self> {
+        let db_path = config.db_path.to_str().context("Invalid database path")?;
+        Self::new(db_path).await
+    }
+
+    pub async fn insert_feed(&self, feed: &Feed) -> Result<()> {
+        sqlx::query(r#"INSERT OR IGNORE INTO rss_feeds (rssurl, url, title) VALUES (?1, ?2, ?3)"#)
+            .bind(feed.rssurl.to_string())
+            .bind(feed.url.to_string())
+            .bind(feed.title.to_string())
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
+    pub async fn insert_item(&self, item: &Item) -> Result<()> {
+        sqlx::query(
+            "INSERT OR IGNORE INTO rss_items (guid, title, author, url, feedurl, pub_date, content, unread) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+        )
+        .bind(&item.guid)
+        .bind(&item.title)
+        .bind(&item.author)
+        .bind(&item.url)
+        .bind(&item.feedurl)
+        .bind(&item.pub_date)
+        .bind(&item.content)
+        .bind(item.unread)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
     }
 }
