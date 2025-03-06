@@ -21,7 +21,7 @@ impl Database {
             CREATE TABLE IF NOT EXISTS rss_feeds (
                rssurl       VARCHAR(1024) PRIMARY KEY NOT NULL, 
                url          VARCHAR(1024) UNIQUE NOT NULL, 
-               title        VARCHAR(1024) NOT NULL, 
+               title        VARCHAR(1024) NOT NULL
         );
             CREATE INDEX IF NOT EXISTS idx_rssurl ON rss_feeds(rssurl);
         "#,
@@ -43,8 +43,8 @@ impl Database {
                 unread      INTEGER(1) NOT NULL,
                 FOREIGN KEY (feedurl) REFERENCES rss_feeds(rssurl)
         );
-            CREATE INDEX idx_guid ON rss_items(guid);
-            CREATE INDEX idx_feedurl ON rss_items(feedurl);
+            CREATE INDEX IF NOT EXISTS idx_guid ON rss_items(guid);
+            CREATE INDEX IF NOT EXISTS idx_feedurl ON rss_items(feedurl);
         "#,
         )
         .execute(&pool)
