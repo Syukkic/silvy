@@ -24,7 +24,32 @@ impl FeedFetcher {
         })
     }
 
-    async fn try_fetch(&self, url: &str) -> Result<(db_Feed, Vec<Item>)> {
+    pub async fn try_fetch(&self, url: &str) -> Result<(db_Feed, Vec<Item>)> {
+        for attempt in 1..=self.retries {
+            match self.process_feed_from_url(url).await {
+                Ok(result) => return Ok(result),
+                Err(e) => {
+                    if attempt == self.retries {
+                        return Err(e);
+                    }
+                    let wait_time = Duration::from_secs(2_u64.pow(attempt));
+                    println!(
+                        "Attempt {}/{} failed, retrying in {:?}...",
+                        attempt + 1,
+                        self.retries,
+                        wait_time
+                    );
+                }
+            }
+        }
+        bail!(
+            "Failed to fetch {} RSS feed after {} retries.",
+            url,
+            self.retries
+        )
+    }
+
+    async fn process_feed_from_url(&self, url: &str) -> Result<(db_Feed, Vec<Item>)> {
         let response = self
             .client
             .get(url)
@@ -51,13 +76,13 @@ impl FeedFetcher {
         let parsed_feed = rss_parser::parse(&bytes[..])
             .context(format!("Failed to parse feed data from {}", url))?;
 
-        let feed = self.normalize_feed(&parsed_feed, url).await?;
-        let items = self.normalize_items(parsed_feed, url).await?;
+        let feed = self.normalize_feed(&parsed_feed, url)?;
+        let items = self.normalize_items(parsed_feed, url)?;
 
         Ok((feed, items))
     }
 
-    async fn normalize_feed(&self, feed: &Feed, url: &str) -> Result<db_Feed> {
+    fn normalize_feed(&self, feed: &Feed, url: &str) -> Result<db_Feed> {
         Ok(db_Feed {
             rssurl: url.to_string(),
             url: url.to_string(),
@@ -70,7 +95,7 @@ impl FeedFetcher {
         })
     }
 
-    async fn normalize_items(&self, feed: Feed, url: &str) -> Result<Vec<Item>> {
+    fn normalize_items(&self, feed: Feed, url: &str) -> Result<Vec<Item>> {
         let mut items: Vec<Item> = Vec::new();
 
         for entry in feed.entries {
@@ -132,7 +157,7 @@ mod tests {
         path: &str,
     ) -> Result<(db_Feed, Vec<Item>)> {
         fetcher
-            .try_fetch(&format!("{}/{}", server.url(), path))
+            .process_feed_from_url(&format!("{}/{}", server.url(), path))
             .await
     }
 
