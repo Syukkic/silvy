@@ -1,12 +1,14 @@
 use crate::config::Config;
 
+pub mod fetcher;
+
 use anyhow::{Context, Ok, Result};
 use std::fs;
 use url::Url;
 
 pub struct UrlEntry {
-    url: Url,
-    tags: Option<Vec<String>>,
+    pub url: Url,
+    pub tags: Option<Vec<String>>,
 }
 
 impl UrlEntry {
