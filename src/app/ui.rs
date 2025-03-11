@@ -1,4 +1,5 @@
 use super::{App, Route};
+use chrono::NaiveDateTime;
 use ratatui::{
     Frame,
     layout::{Constraint, Direction, Layout, Rect},
@@ -16,8 +17,7 @@ pub fn display(app: &mut App, frame: &mut Frame) {
         ])
         .split(frame.area());
 
-    let title = Paragraph::new("Silvy - Your feeds (? unread, ? total)")
-        .style(Style::default().fg(Color::Yellow));
+    let title = Paragraph::new("Silvy - RSS Reader").style(Style::default().fg(Color::Yellow));
 
     frame.render_widget(title, chunks[0]);
 
@@ -57,7 +57,10 @@ fn render_items_list(app: &mut App, frame: &mut Frame, area: Rect) {
             } else {
                 Style::default()
             };
-            ListItem::new(format!("{} - {}", item.pub_date, item.title)).style(style)
+            let formatted_date = NaiveDateTime::from_timestamp(item.pub_date, 0)
+                .format("%b %d")
+                .to_string();
+            ListItem::new(format!("{} - {}", formatted_date, item.title)).style(style)
         })
         .collect();
 
@@ -71,7 +74,7 @@ fn render_items_list(app: &mut App, frame: &mut Frame, area: Rect) {
 fn render_article(app: &mut App, frame: &mut Frame, area: Rect) {
     let content = app.current_article.as_deref().unwrap_or("No content");
     let paragraph = Paragraph::new(content)
-        .block(Block::default().borders(Borders::ALL).title("Artitle"))
+        .block(Block::default().borders(Borders::ALL).title("Article"))
         .wrap(Wrap { trim: true })
         .scroll((app.article_scroll as u16, 0));
 

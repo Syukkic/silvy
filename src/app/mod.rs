@@ -15,14 +15,14 @@ use ratatui::{
 };
 use ui::display;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Route {
     FeedsList,
     ItemsList,
     ArticleView,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct App {
     pub db: Database,
     pub route: Route,
