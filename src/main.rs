@@ -21,7 +21,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let config = Config::new()?;
 
     let db = Database::with_config(&config).await?;
-    let mut app = App::new(db);
+    let mut app = App::new(db.clone());
 
     let feeds = UrlEntry::from_file(&config)?;
     let fetcher = FeedFetcher::new()?;
