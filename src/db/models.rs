@@ -16,7 +16,7 @@ pub struct Item {
     pub author: String,
     pub url: String,
     pub feedurl: String,
-    pub pub_date: String,
+    pub pub_date: i64,
     pub content: String,
     // 1: true, 0: false
     pub unread: u8,

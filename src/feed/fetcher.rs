@@ -1,4 +1,5 @@
 use anyhow::{Context, Result, bail};
+use chrono::{DateTime, TimeZone, Utc};
 use feed_rs::model::Feed;
 use feed_rs::parser as rss_parser;
 use url::Url;
@@ -16,8 +17,8 @@ impl FeedFetcher {
     pub fn new() -> Result<Self> {
         Ok(Self {
             client: reqwest::Client::builder()
-                .timeout(Duration::from_secs(15))
-                .connect_timeout(Duration::from_secs(5))
+                .timeout(Duration::from_secs(30))
+                .connect_timeout(Duration::from_secs(30))
                 .build()
                 .context("Failed to establish HTTP connection")?,
             retries: 3,
@@ -56,7 +57,7 @@ impl FeedFetcher {
             .header("Accept", "application/rss+xml, application/atom+xml")
             .send()
             .await
-            .context("Failedd to HTTP request")?;
+            .context("Failed to establish HTTP request")?;
 
         if !response.status().is_success() {
             bail!("HTTP error: {} (URL: {})", response.status(), &url)
@@ -100,7 +101,13 @@ impl FeedFetcher {
 
         for entry in feed.entries {
             let raw_content = entry.content.and_then(|c| c.body).unwrap_or_default();
-            let cleaned_content = self.sanitize_content(&raw_content, url);
+            let cleaned_content = self.sanitize_content(&raw_content, url)?;
+            let pub_date = entry
+                .published
+                .or(entry.updated)
+                .map(|dt| dt.timestamp())
+                .unwrap_or(0);
+
             items.push(Item {
                 id: 0,
                 guid: entry.id,
@@ -116,11 +123,7 @@ impl FeedFetcher {
                     .map(|l| l.href.clone())
                     .unwrap_or_default(),
                 feedurl: url.to_string(),
-                pub_date: entry
-                    .published
-                    .or(entry.updated)
-                    .map(|t| t.to_rfc2822())
-                    .unwrap_or_default(),
+                pub_date,
                 content: cleaned_content,
                 unread: 1,
             });
@@ -129,26 +132,33 @@ impl FeedFetcher {
         Ok(items)
     }
 
-    pub fn sanitize_content(&self, html: &str, base_url: &str) -> String {
+    pub fn sanitize_content(&self, html: &str, base_url: &str) -> Result<String> {
         // https://docs.rs/ammonia/latest/ammonia/struct.Builder.html#method.link_rel
-        let mut cleaner = Builder::default();
+        let parsed_url = Url::parse(base_url);
 
-        if let Ok(url) = Url::parse(base_url) {
+        if let Ok(url) = parsed_url {
+            let mut cleaner = Builder::default();
             cleaner.url_relative(ammonia::UrlRelative::RewriteWithBase(url));
+            let sanitized_html = cleaner.clean(html).to_string();
+            let text = html2text::from_read(sanitized_html.as_bytes(), sanitized_html.len())
+                .context("Failed to convert HTML to TEXT")?;
+
+            Ok(text.trim().to_string())
+        } else {
+            Err(anyhow::anyhow!("Invalid URL").into())
         }
-        cleaner.clean(html).to_string()
+        // cleaner.clean(html).to_string()
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use anyhow::Result;
+    use anyhow::{Ok, Result};
     use mockito::{Server, ServerGuard};
 
     async fn setup_mock_server() -> ServerGuard {
-        let server = Server::new_async().await;
-        server
+        Server::new_async().await
     }
 
     async fn test_fetch(
@@ -233,14 +243,20 @@ mod tests {
     }
 
     #[test]
-    fn test_sanitize_content() {
+    fn test_sanitize_content() -> Result<()> {
         let fetcher = FeedFetcher::new().unwrap();
         let html = r#"<div><p>Hello, <strong>world</strong>!</p><script>alert("XSS");</script><a href="/about" onclick="alert('clicked')">About</a></div>"#;
 
-        let cleaned = fetcher.sanitize_content(html, "https://example.com");
+        let cleaned = fetcher.sanitize_content(html, "https://example.com")?;
         assert_eq!(
             cleaned,
-            r#"<div><p>Hello, <strong>world</strong>!</p><a href="https://example.com/about" rel="noopener noreferrer">About</a></div>"#
+            r"Hello, **world**!
+
+[About][1]
+
+[1]: https://example.com/about"
         );
+
+        Ok(())
     }
 }

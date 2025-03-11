@@ -108,7 +108,7 @@ impl Database {
 
     pub async fn get_items(&self, feed_url: &str) -> Result<Vec<Item>> {
         let items: Vec<Item> =
-            sqlx::query_as(r#"SELECT * FROM rss_items WHERE feedurl = ? ORDER BY pub_date"#)
+            sqlx::query_as(r#"SELECT * FROM rss_items WHERE feedurl = ? ORDER BY pub_date DESC"#)
                 .bind(feed_url)
                 .fetch_all(&self.pool)
                 .await?;
@@ -137,7 +137,7 @@ mod tests {
             author: "Author".to_string(),
             url: "http://example.com/item".to_string(),
             feedurl: "http://example.com/feed".to_string(),
-            pub_date: "2023-10-01T00:00:00Z".to_string(),
+            pub_date: 1735827065,
             content: "Example content".to_string(),
             unread: 1,
         }];
