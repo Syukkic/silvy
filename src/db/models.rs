@@ -1,6 +1,6 @@
 use sqlx::FromRow;
 
-#[derive(Debug, FromRow)]
+#[derive(Debug, FromRow, Clone)]
 pub struct Feed {
     pub rssurl: String,
     pub url: String,
@@ -8,7 +8,7 @@ pub struct Feed {
     pub unread_count: u32,
 }
 
-#[derive(Debug, FromRow)]
+#[derive(Debug, FromRow, Clone)]
 pub struct Item {
     pub id: u32,
     pub guid: String,

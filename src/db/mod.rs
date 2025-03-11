@@ -6,6 +6,7 @@ use models::{Feed, Item};
 
 pub mod models;
 
+#[derive(Debug, Clone)]
 pub struct Database {
     pub pool: SqlitePool,
 }
@@ -89,6 +90,29 @@ impl Database {
 
         tx.commit().await?;
         Ok(())
+    }
+
+    pub async fn get_all_feeds(&self) -> Result<Vec<Feed>> {
+        let feeds: Vec<Feed> = sqlx::query_as(
+            r#"SELECT f.*, 
+                (SELECT COUNT(*) FROM rss_items 
+                 WHERE feedurl = f.rssurl AND unread = 1) as unread_count
+             FROM rss_feeds f
+             ORDER BY title COLLATE NOCASE"#,
+        )
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(feeds)
+    }
+
+    pub async fn get_items(&self, feed_url: &str) -> Result<Vec<Item>> {
+        let items: Vec<Item> =
+            sqlx::query_as(r#"SELECT * FROM rss_items WHERE feedurl = ? ORDER BY pub_date"#)
+                .bind(feed_url)
+                .fetch_all(&self.pool)
+                .await?;
+        Ok(items)
     }
 }
 
